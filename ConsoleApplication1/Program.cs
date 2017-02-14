@@ -4,6 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Opc.Da;
+using System.Xml;
+using System.Web.Script.Serialization;
+using Newtonsoft.Json.Converters;
+using Newtonsoft.Json;
 
 namespace ConsoleApplication1
 {
@@ -37,20 +41,99 @@ namespace ConsoleApplication1
             active = false;
             items = new List<subItems>();
         }
-        public subs(String XmlFile)
+        public subs(String XmlFile)    
         {
             //Add the parsing and asigning of group subscriptions after parsing the file
         }
 
 
     }
+
+    
     class Program
     {
         private static Opc.Da.Server m_server = null;
-        private Opc.Da.Subscription m_subscirption = null;
+        
 
-        private void addSub(subs subscription)
-        { 
+        public static List<subs> Parser(String inputFile)
+        {
+            String name, itemPath;
+            int updateRate;
+            List<subs> data = new List<subs>();
+            subs s = null;
+            subItems item = null;
+            XmlDocument inputfile = new XmlDocument();
+
+            try
+            {
+                inputfile.Load(inputFile);
+            }
+            catch (System.IO.FileNotFoundException)
+            {
+                Console.Write("404");
+                return null;
+
+            }
+            
+            XmlNode root = inputfile.DocumentElement;
+
+            XmlNode group = root.SelectSingleNode("descendant::PSTAliasGroup");
+
+            XmlNodeList grouplist = group.SelectNodes("PSTAliasGroup");
+
+            foreach (XmlNode g in grouplist)
+            {
+                s = new subs();
+                XmlElement gElement = (XmlElement)g;
+                XmlAttribute attr = gElement.GetAttributeNode("name");
+                name = attr.InnerXml;
+                s.name = name;
+                Console.WriteLine("Group name: {0}", name);
+
+                XmlNodeList aliaslist = g.SelectNodes("PSTAlias");
+                foreach (XmlNode alias in aliaslist)
+                {
+                    item = new subItems();
+                    XmlElement aElement = (XmlElement)alias;
+                    attr = aElement.GetAttributeNode("name");
+                    name = attr.InnerXml;
+                    attr = aElement.GetAttributeNode("itemPath");
+                    itemPath = attr.InnerXml;
+                    attr = aElement.GetAttributeNode("updateRate");
+                    try
+                    {
+                        updateRate = Convert.ToInt32( attr.InnerXml);
+                    }
+                    catch(Exception e)
+                    {
+                        updateRate = 0;
+                    }
+                    item.name = name;
+                    item.path = itemPath;
+                    item.samplingRate = updateRate;
+                    Console.WriteLine("\tThe item name: {0} \n\tThe item path: {1}\n\tThe item rate: {2}\n\t", name, itemPath, updateRate);
+                    s.items.Add(item);
+                }
+                int min;
+                try
+                {
+
+                    min = s.items.Where(x => x.samplingRate != 0).Min(x => x.samplingRate);
+                }
+                catch (Exception e)
+                {
+                    min = 100;
+                }
+                s.updateRate = min;
+                Console.WriteLine("Sub min is : {0}", min);
+                data.Add(s);
+            }
+            return data;
+        }
+
+        private static void addSub(subs subscription)
+        {
+            Opc.Da.Subscription m_subscirption = null;
             Opc.Da.SubscriptionState state = new SubscriptionState();
             state.ClientHandle = Guid.NewGuid().ToString();
             state.Active = subscription.active;
@@ -72,7 +155,7 @@ namespace ConsoleApplication1
                     item.SamplingRate = subItem.samplingRate;
                     item.SamplingRateSpecified = true;
                 }
-
+                itemList.Add(item);
             }
 
             m_subscirption.AddItems(itemList.ToArray());
@@ -95,6 +178,23 @@ namespace ConsoleApplication1
             m_server = new Server(fact, null);
             m_server.Url = url;
             m_server.Connect();
+
+            List<subs> s = null;
+            s = Parser(@"C:\Program Files (x86)\Matrikon\OPC\Simulation\alias.xml");
+            string json = JsonConvert.SerializeObject(s, Newtonsoft.Json.Formatting.Indented);
+            Console.WriteLine(json);
+
+
+            foreach(subs x in s)
+            {
+                addSub(x);
+            }
+
+            foreach (Subscription i in m_server.Subscriptions)
+            {
+                Console.WriteLine(JsonConvert.SerializeObject(i, Newtonsoft.Json.Formatting.Indented));
+            }
+
             //Console.Write(m_server+"\n");
 
             /*
@@ -112,6 +212,29 @@ namespace ConsoleApplication1
             groupRead.DataChanged += new DataChangedEventHandler(GroupRead_DataChanged);
 
 
+            Item item = new Item();
+            item.ItemName = "Random.Real4";
+            item.SamplingRate = 10000;
+            item.ClientHandle = "Vlaue A";
+            item.SamplingRateSpecified = true;
+            itemlist.Add(item);
+
+
+
+
+
+            item = new Item();
+            item.ItemName = "Random.Real4";
+            item.ClientHandle = "Integer";
+            itemlist.Add(item);
+            groupRead.AddItems(itemlist.ToArray());
+            */
+
+
+
+
+            /*
+
             groupState = new SubscriptionState();
             groupState.Name = "myReadGroup2";
             groupState.UpdateRate = 1000; 
@@ -122,24 +245,7 @@ namespace ConsoleApplication1
 
             
 
-            Item item = new Item();
-            item.ItemName = "Random.Real4";
-            item.SamplingRate = 10000;
-            item.ClientHandle = "Vlaue A";
-            item.SamplingRateSpecified = true;
-            itemlist.Add(item);
             
-     
-
-
-
-            item = new Item();
-            item.ItemName = "Random.Real4";
-            item.ClientHandle = "Integer";
-            itemlist.Add(item); 
-            Console.WriteLine(item.SamplingRate);
-
-            groupRead.AddItems(itemlist.ToArray());
 
             itemlist = null;
             itemlist = new List<Item>();
@@ -152,7 +258,7 @@ namespace ConsoleApplication1
                         
             group2.AddItems(itemlist.ToArray());
 
-              */                     
+              */
             Console.Read(); 
             m_server.Disconnect();
 
