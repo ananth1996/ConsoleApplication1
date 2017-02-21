@@ -8,6 +8,8 @@ using System.Xml;
 using System.Web.Script.Serialization;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json;
+using MySql.Data.MySqlClient;
+
 
 namespace ConsoleApplication1
 {
@@ -162,7 +164,94 @@ namespace ConsoleApplication1
 
         }
 
-    
+
+        public class SQLWriter
+        {
+            private SQLWriter()
+            {
+
+            }
+
+            private string dbName = string.Empty;
+            public string DBName
+            {
+                get { return dbName; }
+                set { dbName = value; }
+            }
+            private string pass = string.Empty;
+            public string Password
+            {
+                get { return pass; }
+                set { pass = value; }
+            }
+            private string uid = string.Empty;
+            public string UID
+            {
+                get { return uid; }
+                set { uid = value; }
+            }
+
+
+            private MySqlConnection conn = null;
+            public MySqlConnection connection
+            {
+                get { return conn; }
+            }
+
+            private static SQLWriter _instance = null;
+            public static SQLWriter Instance()
+            {
+                if (_instance == null)
+                    _instance = new SQLWriter();
+                return _instance;
+            }
+
+            public bool Connect()
+            {
+                bool result = true;
+
+                if (conn == null)
+                {
+                    string connstring = string.Format("server=localhost;UID={1}; password={2}", uid, passw);
+                    conn = new MySqlConnection(connstring);
+                    conn.Open();
+                }
+                return result;
+            }
+
+            public void Close()
+            {
+                conn.Close();
+            }
+            public bool MakeDB(string Database)
+            {
+                if (String.IsNullOrEmpty(Database))
+                    return false;
+                if (conn == null)
+                    return false;
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = "CREATE DATABASE IF NOT EXISTS `" + Database + "`;";
+                    cmd.ExecuteNonQuery();
+                }
+                return true;
+            }
+            public bool MakeTable(string Item, string MySqlType)
+            {
+                if (String.IsNullOrEmpty(Item))
+                    return false;
+                if (conn == null)
+                    return false;
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS `" + Item + "`(ts TIMESTAMP primary key, value " + MySQLtype + ");";
+                    cmd.ExecuteNonQuery();
+                }
+                return true;
+            }
+
+        }
+
 
         static void Main(string[] args)
         {
