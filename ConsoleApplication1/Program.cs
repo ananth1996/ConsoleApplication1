@@ -55,7 +55,97 @@ namespace ConsoleApplication1
     class Program
     {
         private static Opc.Da.Server m_server = null;
-        
+
+
+        public class SQLWriter
+        {
+            public SQLWriter()
+            {
+
+            }
+
+            private string dbName = string.Empty;
+            public string DBName
+            {
+                get { return dbName; }
+                set { dbName = value; }
+            }
+            private string pass = string.Empty;
+            public string Password
+            {
+                get { return pass; }
+                set { pass = value; }
+            }
+            private string uid = string.Empty;
+            public string UID
+            {
+                get { return uid; }
+                set { uid = value; }
+            }
+
+
+            private MySqlConnection conn = null;
+            public MySqlConnection connection
+            {
+                get { return conn; }
+            }
+
+            private static SQLWriter _instance = null;
+
+            public static SQLWriter Instance()
+            {
+                if (_instance == null)
+                    _instance = new SQLWriter();
+                return _instance;
+            }
+
+            public bool Connect()
+            {
+                bool result = true;
+
+                if (conn == null)
+                {
+                    string connstring = string.Format("server=localhost;UID={0}; password={1}", uid, pass);
+                    conn = new MySqlConnection(connstring);
+                    conn.Open();
+                }
+                return result;
+            }
+
+            public void Close()
+            {
+                conn.Close();
+            }
+            public bool MakeDB(string Database)
+            {
+                if (String.IsNullOrEmpty(Database))
+                    return false;
+                if (conn == null)
+                    return false;
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = "CREATE DATABASE IF NOT EXISTS `" + Database + "`;";
+                    cmd.ExecuteNonQuery();
+                }
+                return true;
+            }
+            public bool MakeTable(string Item, string MySqlType)
+            {
+                if (String.IsNullOrEmpty(Item))
+                    return false;
+                if (conn == null)
+                    return false;
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS `" + Item + "`(ts TIMESTAMP primary key, value " + MySqlType + ");";
+                    cmd.ExecuteNonQuery();
+                }
+                return true;
+            }
+
+        }
+
+
 
         public static List<subs> Parser(String inputFile)
         {
@@ -83,52 +173,69 @@ namespace ConsoleApplication1
 
             XmlNodeList grouplist = group.SelectNodes("PSTAliasGroup");
 
-            foreach (XmlNode g in grouplist)
-            {
-                s = new subs();
-                XmlElement gElement = (XmlElement)g;
-                XmlAttribute attr = gElement.GetAttributeNode("name");
-                name = attr.InnerXml;
-                s.name = name;
-                Console.WriteLine("Group name: {0}", name);
 
-                XmlNodeList aliaslist = g.SelectNodes("PSTAlias");
-                foreach (XmlNode alias in aliaslist)
+            var db = SQLWriter.Instance();
+            db.UID = "ananth";
+            db.Password = "admin123";
+            if (!db.Connect())
+            {
+                Console.WriteLine("Cannot Connect to database");
+            }
+            else
+            {
+                
+                foreach (XmlNode g in grouplist)
                 {
-                    item = new subItems();
-                    XmlElement aElement = (XmlElement)alias;
-                    attr = aElement.GetAttributeNode("name");
+                    s = new subs();
+                    XmlElement gElement = (XmlElement)g;
+                    XmlAttribute attr = gElement.GetAttributeNode("name");
                     name = attr.InnerXml;
-                    attr = aElement.GetAttributeNode("itemPath");
-                    itemPath = attr.InnerXml;
-                    attr = aElement.GetAttributeNode("updateRate");
+                    s.name = name;
+                    Console.WriteLine("Group name: {0}", name);
+
+                    db.MakeDB(name);
+                    db.connection.ChangeDatabase(name);
+
+                    XmlNodeList aliaslist = g.SelectNodes("PSTAlias");
+                    foreach (XmlNode alias in aliaslist)
+                    {
+                        item = new subItems();
+                        XmlElement aElement = (XmlElement)alias;
+                        attr = aElement.GetAttributeNode("name");
+                        name = attr.InnerXml;
+                        attr = aElement.GetAttributeNode("itemPath");
+                        itemPath = attr.InnerXml;
+                        attr = aElement.GetAttributeNode("updateRate");
+                        db.MakeTable(name,"varchar(10)");
+
+                        try
+                        {
+                            updateRate = Convert.ToInt32(attr.InnerXml);
+                        }
+                        catch (Exception e)
+                        {
+                            updateRate = 0;
+                        }
+                        item.name = name;
+                        item.path = itemPath;
+                        item.samplingRate = updateRate;
+                        Console.WriteLine("\tThe item name: {0} \n\tThe item path: {1}\n\tThe item rate: {2}\n\t", name, itemPath, updateRate);
+                        s.items.Add(item);
+                    }
+                    int min;
                     try
                     {
-                        updateRate = Convert.ToInt32( attr.InnerXml);
-                    }
-                    catch(Exception e)
-                    {
-                        updateRate = 0;
-                    }
-                    item.name = name;
-                    item.path = itemPath;
-                    item.samplingRate = updateRate;
-                    Console.WriteLine("\tThe item name: {0} \n\tThe item path: {1}\n\tThe item rate: {2}\n\t", name, itemPath, updateRate);
-                    s.items.Add(item);
-                }
-                int min;
-                try
-                {
 
-                    min = s.items.Where(x => x.samplingRate != 0).Min(x => x.samplingRate);
+                        min = s.items.Where(x => x.samplingRate != 0).Min(x => x.samplingRate);
+                    }
+                    catch (Exception e)
+                    {
+                        min = 100;
+                    }
+                    s.updateRate = min;
+                    Console.WriteLine("Sub min is : {0}", min);
+                    data.Add(s);
                 }
-                catch (Exception e)
-                {
-                    min = 100;
-                }
-                s.updateRate = min;
-                Console.WriteLine("Sub min is : {0}", min);
-                data.Add(s);
             }
             return data;
         }
@@ -165,92 +272,7 @@ namespace ConsoleApplication1
         }
 
 
-        public class SQLWriter
-        {
-            private SQLWriter()
-            {
-
-            }
-
-            private string dbName = string.Empty;
-            public string DBName
-            {
-                get { return dbName; }
-                set { dbName = value; }
-            }
-            private string pass = string.Empty;
-            public string Password
-            {
-                get { return pass; }
-                set { pass = value; }
-            }
-            private string uid = string.Empty;
-            public string UID
-            {
-                get { return uid; }
-                set { uid = value; }
-            }
-
-
-            private MySqlConnection conn = null;
-            public MySqlConnection connection
-            {
-                get { return conn; }
-            }
-
-            private static SQLWriter _instance = null;
-            public static SQLWriter Instance()
-            {
-                if (_instance == null)
-                    _instance = new SQLWriter();
-                return _instance;
-            }
-
-            public bool Connect()
-            {
-                bool result = true;
-
-                if (conn == null)
-                {
-                    string connstring = string.Format("server=localhost;UID={1}; password={2}", uid, passw);
-                    conn = new MySqlConnection(connstring);
-                    conn.Open();
-                }
-                return result;
-            }
-
-            public void Close()
-            {
-                conn.Close();
-            }
-            public bool MakeDB(string Database)
-            {
-                if (String.IsNullOrEmpty(Database))
-                    return false;
-                if (conn == null)
-                    return false;
-                using (var cmd = conn.CreateCommand())
-                {
-                    cmd.CommandText = "CREATE DATABASE IF NOT EXISTS `" + Database + "`;";
-                    cmd.ExecuteNonQuery();
-                }
-                return true;
-            }
-            public bool MakeTable(string Item, string MySqlType)
-            {
-                if (String.IsNullOrEmpty(Item))
-                    return false;
-                if (conn == null)
-                    return false;
-                using (var cmd = conn.CreateCommand())
-                {
-                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS `" + Item + "`(ts TIMESTAMP primary key, value " + MySQLtype + ");";
-                    cmd.ExecuteNonQuery();
-                }
-                return true;
-            }
-
-        }
+        
 
 
         static void Main(string[] args)
