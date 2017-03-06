@@ -9,7 +9,7 @@ using System.Web.Script.Serialization;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json;
 using MySql.Data.MySqlClient;
-
+using System.Diagnostics;
 
 namespace ConsoleApplication1
 {
@@ -40,7 +40,7 @@ namespace ConsoleApplication1
         {
             name = null;
             updateRate = 0;
-            active = false;
+            active = true;
             items = new List<subItems>();
         }
         public subs(String XmlFile)    
@@ -55,7 +55,7 @@ namespace ConsoleApplication1
     class Program
     {
         private static Opc.Da.Server m_server = null;
-
+       
 
         public class SQLWriter
         {
@@ -137,7 +137,10 @@ namespace ConsoleApplication1
                     return false;
                 using (var cmd = conn.CreateCommand())
                 {
-                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS `" + Item + "`(ts TIMESTAMP primary key, value " + MySqlType + ");";
+                    cmd.CommandText = "CREATE TABLE IF NOT EXISTS `" + Item + "`(ts TIMESTAMP(3) primary key, value " + MySqlType + ");";
+                    cmd.ExecuteNonQuery();
+                    Debug.Write("Executed the command :{1}", cmd.CommandText);
+                    cmd.CommandText = "ALTER TABLE `" + Item + "` MODIFY ts TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3);";
                     cmd.ExecuteNonQuery();
                 }
                 return true;
@@ -173,7 +176,6 @@ namespace ConsoleApplication1
 
             XmlNodeList grouplist = group.SelectNodes("PSTAliasGroup");
 
-
             var db = SQLWriter.Instance();
             db.UID = "ananth";
             db.Password = "admin123";
@@ -206,7 +208,7 @@ namespace ConsoleApplication1
                         attr = aElement.GetAttributeNode("itemPath");
                         itemPath = attr.InnerXml;
                         attr = aElement.GetAttributeNode("updateRate");
-                        db.MakeTable(name,"varchar(10)");
+                        db.MakeTable(name,"varchar(30)");
 
                         try
                         {
@@ -293,19 +295,14 @@ namespace ConsoleApplication1
             List<subs> s = null;
             s = Parser(@"C:\Program Files (x86)\Matrikon\OPC\Simulation\alias.xml");
             string json = JsonConvert.SerializeObject(s, Newtonsoft.Json.Formatting.Indented);
-            Console.WriteLine(json);
+            //Console.WriteLine(json);
 
 
             foreach(subs x in s)
             {
                 addSub(x);
             }
-
-            foreach (Subscription i in m_server.Subscriptions)
-            {
-                Console.WriteLine(JsonConvert.SerializeObject(i, Newtonsoft.Json.Formatting.Indented));
-            }
-
+            var t1 = DateTime.Now;
             //Console.Write(m_server+"\n");
 
             /*
@@ -370,7 +367,7 @@ namespace ConsoleApplication1
             group2.AddItems(itemlist.ToArray());
 
               */
-            Console.Read(); 
+            Console.Read();
             m_server.Disconnect();
 
        
@@ -378,15 +375,44 @@ namespace ConsoleApplication1
 
         public static void GroupRead_DataChanged(object subscriptionHandle, object requestHandle, ItemValueResult[] values)
         {
-           foreach(Subscription subscription in m_server.Subscriptions)
+
+            var db = SQLWriter.Instance();
+            db.UID = "ananth";
+            db.Password = "admin123";
+            string format = "yyyy-MM-dd HH:mm:ss";
+            if (!db.Connect())
+            {
+                Console.WriteLine("Cannot Connect to database");
+            }
+
+            foreach (Subscription subscription in m_server.Subscriptions)
             {
                 if(subscription.ClientHandle.Equals(subscriptionHandle))
                 {
                     Console.Write(subscription.Name+"\t");
-                    foreach(ItemValueResult res in values)
+                    db.connection.ChangeDatabase(subscription.Name);
+                    string inserter = "";
+                    var cmd = db.connection.CreateCommand();
+                    
+                    foreach (ItemValueResult res in values)
                     {
                         //Here we add the write to the database
-                        Console.Write("  {1}:  {0}\t", res.Value.ToString(),res.ClientHandle);
+                        Console.Write("  {1}:  {0} {2}\n", res.Value.ToString(),res.ClientHandle,res.Timestamp);
+                        
+                        inserter = String.Format("Insert into `{0}` values ( '{1}' , '{2}' );", res.ClientHandle, res.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff"), res.Value.ToString());
+                        
+                        cmd.CommandText = inserter;
+                        try
+                        {
+                            
+                            cmd.ExecuteNonQuery();
+                            Debug.WriteLine("success: " + inserter);
+                        }
+                        catch(Exception e)
+                        {
+                            Debug.WriteLine("Failure: " + inserter);
+                            return;
+                        }
                     }
                     Console.WriteLine();
                 }
