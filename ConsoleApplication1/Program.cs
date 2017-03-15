@@ -303,70 +303,9 @@ namespace ConsoleApplication1
                 addSub(x);
             }
             var t1 = DateTime.Now;
-            //Console.Write(m_server+"\n");
+           
 
-            /*
-            Subscription groupRead,group2;
-            SubscriptionState groupState;
-
-            List<Item> itemlist = new List<Item>();
-            groupState = new SubscriptionState();
-
-            groupState.Name = "myReadGroup";
-            groupState.UpdateRate = 1000; //should be min of all the items in the sub, this allows slower data to be read when required
-            groupState.Active = true;
-            groupState.ClientHandle = Guid.NewGuid().ToString();
-            groupRead = (Subscription)m_server.CreateSubscription(groupState);
-            groupRead.DataChanged += new DataChangedEventHandler(GroupRead_DataChanged);
-
-
-            Item item = new Item();
-            item.ItemName = "Random.Real4";
-            item.SamplingRate = 10000;
-            item.ClientHandle = "Vlaue A";
-            item.SamplingRateSpecified = true;
-            itemlist.Add(item);
-
-
-
-
-
-            item = new Item();
-            item.ItemName = "Random.Real4";
-            item.ClientHandle = "Integer";
-            itemlist.Add(item);
-            groupRead.AddItems(itemlist.ToArray());
-            */
-
-
-
-
-            /*
-
-            groupState = new SubscriptionState();
-            groupState.Name = "myReadGroup2";
-            groupState.UpdateRate = 1000; 
-            groupState.Active = true;
-            groupState.ClientHandle = Guid.NewGuid().ToString();
-            group2 = (Subscription)m_server.CreateSubscription(groupState);
-            group2.DataChanged += new DataChangedEventHandler(GroupRead_DataChanged);
-
-            
-
-            
-
-            itemlist = null;
-            itemlist = new List<Item>();
-            item = new Item();
-            item.ItemName = "Random.Boolean";
-            itemlist.Add(item);
-            item = new Item();
-            item.ItemName = "Random.Time";
-            itemlist.Add(item);
-                        
-            group2.AddItems(itemlist.ToArray());
-
-              */
+           // Disconnecting 
             Console.Read();
             m_server.Disconnect();
 
@@ -379,7 +318,7 @@ namespace ConsoleApplication1
             var db = SQLWriter.Instance();
             db.UID = "ananth";
             db.Password = "admin123";
-            string format = "yyyy-MM-dd HH:mm:ss";
+            
             if (!db.Connect())
             {
                 Console.WriteLine("Cannot Connect to database");
